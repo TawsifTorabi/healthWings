@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        const ipAddress = "192.168.1.102";
+        var seconds = 60;
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase</title>
+    <style>
+        body{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #productCode{
+            border: 1px solid grey;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 18px;
+            color: grey
+        }
+        .submitBtn{
+            background-color: rgb(57, 116, 234);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 5px;
+            padding: 8px;
+            border: none;
+            margin-top: 9px;
+        }
+        .submitBtn:hover{
+            background-color: rgb(48, 100, 203);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 5px;
+            padding: 8px;
+            border: none;
+            margin-top: 9px;
+        }
+        .header {
+            font-family: monospace;
+            color: grey;
+            letter-spacing: 14px;
+            font-size: 38px;
+        }
+    </style>
+</head>
+<body>
+    <center>
+        <h3 class="header">AirPickup Admin</h3>
+        <div id="productCodeInput">
+            <br>
+            <button class="submitBtn" onclick="sendCommand('openAll')">Open All</button>
+            <br>
+            <button class="submitBtn" onclick="sendCommand('closeAll')">Close All</button>
+            <br>
+            <button class="submitBtn" onclick="sendCommand('reset')">Reset</button>
+        </div>
+
+    </center>
+    
+    <script>
+
+        const serverAddress = "ws://"+ipAddress+":80/remote";
+
+        // Function to send a command to the RC car
+        async function sendCommand(command) {
+            if (webSocket) {
+                if ((webSocket.readyState === WebSocket.CLOSED || webSocket.readyState === WebSocket.CLOSING) && userClosedConnection == false) {
+                    // If the WebSocket is closed or closing, do not reopen it here
+                    console.log("WebSocket is closed or closing. Cannot send command.");
+                    openWebSocket();
+                }
+                if (webSocket.readyState === WebSocket.OPEN) {
+                    webSocket.send(command);
+                    console.log(command);
+                }
+            } else {
+                console.error("WebSocket is not connected.");
+            }
+        }
+
+        // Function to open a WebSocket connection
+        async function openWebSocket() {
+            webSocket = new WebSocket(serverAddress);
+            webSocket.onopen = function () {
+                console.log("WebSocket connected to:", serverAddress);
+            };
+            webSocket.onclose = function () {
+                console.log("WebSocket closed.");
+                clearInterval(pingInterval);
+            };
+            webSocket.onerror = function (error) {
+                console.error("WebSocket error:", error);
+            };
+            webSocket.onmessage = function (event) {
+                if (event.data === "pong") {
+                    const pingValue = Date.now() - pingStart;
+                    document.getElementById("pingValue").textContent = pingValue + " ms";
+                }
+                if (event.data.split(":")[0] === "battery") {
+                    document.getElementById("batteryVoltage").textContent = event.data.split(":")[1];
+                    console.log(event.data);
+                    if(parseFloat(event.data.split(":")[1]) < batteryLowVoltage){
+                        lowbatteryCounter++;
+                        if(lowbatteryCounter > 3){
+                            alertLowBattery();
+                            console.log('Yes');
+                        }
+                    }else{
+                        console.log('No');
+                        lowbatteryCounter = 0;
+                        alertLowBatteryCancel();
+                    }
+                }
+            };
+        }
+
+        openWebSocket();
+    </script>
+</body>
+</html>

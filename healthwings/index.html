@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        const ipAddress = "192.168.1.102";
+        var seconds = 60;
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase</title>
+    <style>
+        body{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #productCode{
+            border: 1px solid grey;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 18px;
+            color: grey
+        }
+        .submitBtn{
+            background-color: rgb(57, 116, 234);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 5px;
+            padding: 8px;
+            border: none;
+            margin-top: 9px;
+        }
+        .submitBtn:hover{
+            background-color: rgb(48, 100, 203);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 5px;
+            padding: 8px;
+            border: none;
+            margin-top: 9px;
+        }
+        .header {
+            font-family: monospace;
+            color: grey;
+            letter-spacing: 14px;
+            font-size: 38px;
+        }
+    </style>
+</head>
+<body>
+    <center>
+        <h3 class="header">AirPickup</h3>
+        <div id="productCodeInput">
+            <input type="number" name="" placeholder="Enter Product Code" id="productCode">
+            <br>
+            <button class="submitBtn" onclick="pickup()">Pickup Now</button>
+            <br>
+            <span id="Invalid"></span>
+        </div>
+        <div id="AwaitingPickup" style="display: none;">
+            <h4>Collect Your Product From</h4>
+            <h2>Box <span id="boxNum">0</span></h1>
+            <br>
+            Please Pickup within <span style="font-weight: bold;" id="timer"></span> seconds 
+            <br>
+            else the door will lock again.
+            <br>
+            <button class="submitBtn" onclick="donePickup()">I've Picked Up</button>
+        </div>
+        <div id="outro" style="display: none;">
+            <h2>Thank You!</h2>
+            <h4>For Taking Our Service!</h4>
+            <br>
+            <button class="submitBtn" onclick="pickAnother()">Pick Another</button>
+        </div>
+    </center>
+    
+    <script>
+
+        // Function to handle Enter key press in the input field
+        document.getElementById("productCode").addEventListener("keyup", function(event) {
+            if (event.key === "Enter") {
+                pickup(); // Trigger pickup function on Enter key press
+            }
+        });
+
+        const serverAddress = "ws://"+ipAddress+":80/remote";
+
+        var currentDoor = 0;
+
+        // JSON object to store codes and their corresponding doors
+        const doorCodes = {
+                    "1122": 1, 
+                    "3116": 2, 
+                    "9999": 3, 
+                    "2331": 1, 
+                    "6666": 2, 
+                    "3333": 2, 
+                    "3311": 1, 
+                    "2222": 2, 
+                    "1111": 1, 
+                    "5341": 2, 
+                    "3321": 3, 
+                    // Add more codes and corresponding doors as needed
+                };
+
+        function pickup() {
+
+           
+            let enteredCode = document.getElementById("productCode").value;
+
+            if (doorCodes.hasOwnProperty(enteredCode)) {
+                let doorNumber = doorCodes[enteredCode];
+                sendCommand(`door:${doorNumber},state:1`);
+                document.getElementById('boxNum').textContent = doorNumber;
+                currentDoor = doorNumber;
+
+                document.getElementById('productCodeInput').style.display = 'none';
+                document.getElementById('AwaitingPickup').style.display = 'inherit';
+
+                countdown();
+                
+
+            } else {
+                console.log("Invalid code entered.");
+                document.getElementById('Invalid').textContent = "Invalid code entered.";
+                // Handle invalid code scenario here (e.g., show an error message)
+            }
+        }
+
+        function donePickup(){
+            interruptCountdown();
+            sendCommand(`door:${currentDoor},state:0`);
+            currentDoor = 0;
+            document.getElementById('productCodeInput').style.display = 'none';
+            document.getElementById('AwaitingPickup').style.display = 'none';
+            document.getElementById('outro').style.display = 'inherit';
+            document.getElementById('Invalid').textContent = "";
+        }
+
+        function pickAnother(){
+            document.getElementById('productCodeInput').style.display = 'inherit';
+            document.getElementById('AwaitingPickup').style.display = 'none';
+            document.getElementById('outro').style.display = 'none';
+            document.getElementById("productCode").value = "";
+        }
+
+        var countdownInterval;
+
+        function countdown() {
+            var timerElement = document.getElementById('timer');
+
+            countdownInterval = setInterval(function() {
+                seconds--;
+                timerElement.textContent = seconds;
+
+                if (seconds <= 0) {
+                    clearInterval(countdownInterval);
+                    timerFinished();
+                }
+            }, 1000);
+        }
+
+        function timerFinished() {
+            console.log("Countdown finished!");
+            sendCommand(`door:${currentDoor},state:0`);
+            currentDoor = 0;
+            document.getElementById('productCodeInput').style.display = 'inherit';
+            document.getElementById('AwaitingPickup').style.display = 'none';
+        }
+
+        function interruptCountdown() {
+            clearInterval(countdownInterval);
+            console.log("Countdown interrupted!");
+        }
+
+        // Function to send a command to the RC car
+        async function sendCommand(command) {
+            if (webSocket) {
+                if ((webSocket.readyState === WebSocket.CLOSED || webSocket.readyState === WebSocket.CLOSING) && userClosedConnection == false) {
+                    // If the WebSocket is closed or closing, do not reopen it here
+                    console.log("WebSocket is closed or closing. Cannot send command.");
+                    openWebSocket();
+                }
+                if (webSocket.readyState === WebSocket.OPEN) {
+                    webSocket.send(command);
+                    console.log(command);
+                }
+            } else {
+                console.error("WebSocket is not connected.");
+            }
+        }
+
+        // Function to open a WebSocket connection
+        async function openWebSocket() {
+            webSocket = new WebSocket(serverAddress);
+            webSocket.onopen = function () {
+                console.log("WebSocket connected to:", serverAddress);
+            };
+            webSocket.onclose = function () {
+                console.log("WebSocket closed.");
+                clearInterval(pingInterval);
+            };
+            webSocket.onerror = function (error) {
+                console.error("WebSocket error:", error);
+            };
+            webSocket.onmessage = function (event) {
+                if (event.data === "pong") {
+                    const pingValue = Date.now() - pingStart;
+                    document.getElementById("pingValue").textContent = pingValue + " ms";
+                }
+                if (event.data.split(":")[0] === "battery") {
+                    document.getElementById("batteryVoltage").textContent = event.data.split(":")[1];
+                    console.log(event.data);
+                    if(parseFloat(event.data.split(":")[1]) < batteryLowVoltage){
+                        lowbatteryCounter++;
+                        if(lowbatteryCounter > 3){
+                            alertLowBattery();
+                            console.log('Yes');
+                        }
+                    }else{
+                        console.log('No');
+                        lowbatteryCounter = 0;
+                        alertLowBatteryCancel();
+                    }
+                }
+            };
+        }
+
+        openWebSocket();
+    </script>
+</body>
+</html>
