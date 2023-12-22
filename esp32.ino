@@ -20,8 +20,8 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 
-const char *ssid = "inferno";
-const char *password = "dAN_BR0WNinferno";
+const char *ssid = "ssid";
+const char *password = "password";
 
 
 //PIR
